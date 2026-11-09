@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "333098060875",
+    "project_id": "cipherscope-74efe",
+    "storage_bucket": "cipherscope-74efe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:333098060875:android:887669ca8b40999ac891ce",
+        "android_client_info": {
+          "package_name": "com.cipherscope.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCMNW8mxFI2g7NlD9lGqL8Np1bP3juaWvg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
