@@ -1,67 +1,86 @@
-plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
-}
+name: Build CipherScope APK
 
-android {
-    namespace = "com.cipherscope.app"
-    compileSdk = 34
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-    defaultConfig {
-        applicationId = "com.cipherscope.app"
-        minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-    }
+jobs:
+  build:
+    name: Assemble Android Debug APK
+    runs-on: ubuntu-latest
 
-    buildTypes {
-        release {
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-        }
-    }
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
-    }
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf("-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")
-    }
+      # Automatically creates root Gradle files if missing on GitHub
+      - name: Bootstrap Missing Root Files
+        run: |
+          # 1. Create settings.gradle.kts if missing
+          if [ ! -f "settings.gradle.kts" ] && [ ! -f "settings.gradle" ]; then
+            echo "Creating missing settings.gradle.kts..."
+            cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CipherScope"
+          include(":app")
+          EOF
+          fi
 
-    buildFeatures {
-        compose = true
-    }
+          # 2. Create root build.gradle.kts if missing
+          if [ ! -f "build.gradle.kts" ] && [ ! -f "build.gradle" ]; then
+            echo "Creating missing root build.gradle.kts..."
+            cat << 'EOF' > build.gradle.kts
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:8.3.2")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.23")
+                  classpath("com.google.gms:google-services:4.4.1")
+              }
+          }
+          EOF
+          fi
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.11"
-    }
-}
+      # Automatically installs Gradle & creates wrapper if missing
+      - name: Ensure Gradle Wrapper Exists
+        run: |
+          if [ ! -f "gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "Generating Gradle wrapper..."
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq gradle
+            gradle wrapper --gradle-version 8.6
+          fi
+          chmod +x gradlew
 
-dependencies {
-    val composeBom = platform("androidx.compose:compose-bom:2024.04.01")
-    implementation(composeBom)
-    implementation("androidx.core:core-ktx:1.13.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    implementation("androidx.activity:activity-compose:1.9.0")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+      - name: Build Debug APK
+        run: ./gradlew :app:assembleDebug --stacktrace
 
-    // Firebase
-    val firebaseBom = platform("com.google.firebase:firebase-bom:32.8.1")
-    implementation(firebaseBom)
-    implementation("com.google.firebase:firebase-auth-ktx")
-    implementation("com.google.firebase:firebase-firestore-ktx")
-
-    // Networking & Coroutines
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0")
-}
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CipherScope-v1.0-Debug
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
