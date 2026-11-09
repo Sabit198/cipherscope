@@ -20,16 +20,73 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # Fix for phone developers: Generates gradlew automatically if missing
-      - name: Ensure Gradle Wrapper Exists
+      # Auto-detects if your code is inside a subfolder and fixes root files
+      - name: Diagnose and Bootstrap Project
         run: |
+          echo "=== 1. CHECKING ROOT FOLDER ==="
+          ls -la
+
+          # If app/ is trapped inside a nested folder (e.g. cipherscope/app)
+          if [ ! -d "app" ]; then
+            NESTED_DIR=$(find . -mindepth 1 -maxdepth 2 -type d -name "app" -exec dirname {} \; | head -n 1)
+            if [ -n "$NESTED_DIR" ] && [ "$NESTED_DIR" != "." ]; then
+              echo "Detected nested folder: $NESTED_DIR. Moving to root..."
+              cp -r $NESTED_DIR/* . 2>/dev/null || true
+            fi
+          fi
+
+          # Ensure settings.gradle.kts exists
+          if [ ! -f "settings.gradle.kts" ] && [ ! -f "settings.gradle" ]; then
+            echo "Auto-generating missing settings.gradle.kts..."
+            cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "CipherScope"
+          include(":app")
+          EOF
+          fi
+
+          # Ensure root build.gradle.kts exists
+          if [ ! -f "build.gradle.kts" ] && [ ! -f "build.gradle" ]; then
+            echo "Auto-generating missing root build.gradle.kts..."
+            cat << 'EOF' > build.gradle.kts
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath("com.android.tools.build:gradle:8.3.2")
+                  classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.23")
+                  classpath("com.google.gms:google-services:4.4.1")
+              }
+          }
+          EOF
+          fi
+
+          # Install Gradle wrapper if missing
           if [ ! -f "gradlew" ] || [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "Gradle wrapper missing or incomplete. Generating in cloud..."
+            echo "Auto-generating Gradle wrapper..."
             sudo apt-get update -qq
             sudo apt-get install -y -qq gradle
             gradle wrapper --gradle-version 8.6
           fi
           chmod +x gradlew
+
+          echo "=== 2. FINAL ROOT STRUCTURE ==="
+          ls -la
 
       - name: Build Debug APK
         run: ./gradlew :app:assembleDebug --stacktrace
